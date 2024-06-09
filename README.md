@@ -18,14 +18,14 @@ options:
 =======================================>
 
 Available methods:
-- ascii: Generates a specified number of ASCII characters ('A')
-- nonprintable: Generates a specified number of non-printable characters
-- formatstrings: Generates a specified number of '%x' format strings
-- randombinary: Generates a specified number of random binary data (hex)
-- randomascii: Generates a specified number of random ASCII characters
-- structured: Generates structured junk data by repeating 'ABCD'
-- unicode: Generates a specified number of Unicode characters
-- sqlinjection: Generates a specified number of characters from a SQL injection pattern
-- pathtraversal: Generates a specified number of characters for a path traversal attempt
-- cmdinjection: Generates a specified number of characters for a command injection attempt
-- htmljsinjection: Generates a specified number of characters for an HTML/JavaScript injection attempt
+- ascii: Generates ASCII characters ('A')
+- nonprintable: Generates non-printable characters
+- formatstrings: Generates '%x' format strings
+- randombinary: Generates random binary data (hex)
+- randomascii: Generates random ASCII characters
+- structured: Generates repeating 'ABCD'
+- unicode: Generates Unicode characters
+- sqlinjection: Generates SQL injection pattern
+- pathtraversal: Generates path traversal attempt
+- cmdinjection: Generates command injection attempt
+- htmljsinjection: Generates HTML/JavaScript injection attempt
