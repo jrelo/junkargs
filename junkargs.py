@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import subprocess
 import os
 import argparse
@@ -7,7 +9,7 @@ import binascii
 import sys
 import tempfile
 
-def run_binary(binary, args, description, verbose):
+def run_binary(binary, args, description):
     temp_files = []
     processed_args = []
     temp_file_contents = []
@@ -22,12 +24,12 @@ def run_binary(binary, args, description, verbose):
         else:
             processed_args.append(arg)
 
-    if verbose:
-        formatted_command = [binary] + [repr(arg) for arg in processed_args]
-        print(f"Generated command: {' '.join(formatted_command)}")
+    # Always print verbose output
+    formatted_command = [binary] + [repr(arg) for arg in processed_args]
+    print(f"Generated command: {' '.join(formatted_command)}")
 
-        for i, content in enumerate(temp_file_contents):
-            print(f"Temporary file {temp_files[i]} contains: {content!r}")
+    for i, content in enumerate(temp_file_contents):
+        print(f"Temporary file {temp_files[i]} contains: {content!r}")
 
     result = subprocess.run([binary] + processed_args, capture_output=True, text=True)
     print(f"Running '{binary}' with {description}")
@@ -38,47 +40,47 @@ def run_binary(binary, args, description, verbose):
     for temp_file in temp_files:
         os.remove(temp_file)
 
-def generate_argument(method, count=None):
-    if method == 'ascii':
+def generate_argument(generator, count=None):
+    if generator == 'ascii':
         return 'A' * count, f"{count} ASCII characters ('A')"
-    elif method == 'nonprintable':
+    elif generator == 'nonprintable':
         junk_data = ''.join(chr(i) for i in range(1, 32))
         return junk_data[:count], f"{count} non-printable characters"
-    elif method == 'formatstrings':
+    elif generator == 'formatstrings':
         fmt = "%x" * count
         return fmt, f"'%x' format strings ({count} instances)"
-    elif method == 'randombinary':
+    elif generator == 'randombinary':
         arg = binascii.hexlify(os.urandom(count)).decode('utf-8')
         return arg, f"random binary data (hex) ({count} bytes)"
-    elif method == 'randomascii':
+    elif generator == 'randomascii':
         arg = ''.join(random.choices(string.ascii_letters + string.digits + string.punctuation, k=count))
         return arg, f"random ASCII characters ({count} characters)"
-    elif method == 'structured':
+    elif generator == 'structured':
         sequence = "ABCDEF" * ((count + 5) // 6)
         return sequence[:count], f"structured junk data (repeating 'ABCDEF') ({count} characters)"
-    elif method == 'unicode':
+    elif generator == 'unicode':
         arg = ''.join(chr(0x1F600 + i) for i in range(count))
         return arg, f"Unicode characters ({count} characters)"
-    elif method == 'sqlinjection':
+    elif generator == 'sqlinjection':
         arg = "' OR '1'='1'; --"[:count]
         return arg, f"SQL injection pattern ({count} characters)"
-    elif method == 'pathtraversal':
+    elif generator == 'pathtraversal':
         arg = "../../etc/passwd"[:count]
         return arg, f"Path traversal ({count} characters)"
-    elif method == 'cmdinjection':
+    elif generator == 'cmdinjection':
         arg = "a; ls; #"[:count]
         return arg, f"Command injection ({count} characters)"
-    elif method == 'htmljsinjection':
+    elif generator == 'htmljsinjection':
         arg = "<script>alert('XSS')</script>"[:count]
         return arg, f"HTML/JavaScript injection ({count} characters)"
-    elif method == 'nullbytes':
+    elif generator == 'nullbytes':
         arg = b'\x00' * count
         return arg, f"{count} null bytes (as '\\x00')"
-    elif method == 'randomhex':
+    elif generator == 'randomhex':
         hex_bytes = os.urandom(count)
         return hex_bytes, f"random hex data ({count} bytes)"
-    elif method.startswith('file:'):
-        filename = method.split(':')[1]
+    elif generator.startswith('file:'):
+        filename = generator.split(':')[1]
         if os.path.exists(filename):
             with open(filename, 'rb') as file:
                 content = file.read()
@@ -86,59 +88,62 @@ def generate_argument(method, count=None):
         else:
             raise ValueError(f"File not found: {filename}")
     else:
-        raise ValueError(f"Unknown method: {method}")
+        raise ValueError(f"Unknown generator: {generator}")
 
 def main():
-    parser = argparse.ArgumentParser(description='Run executable with junk data as arguments.')
+    generators_help = """
+Available generators:
+- ascii: Generates a specified number of ASCII characters ('A')
+- nonprintable: Generates a specified number of non-printable characters
+- formatstrings: Generates a specified number of '%x' format strings
+- randombinary: Generates a specified number of random binary data (hex)
+- randomascii: Generates a specified number of random ASCII characters
+- structured: Generates structured junk data by repeating 'ABCDEF'
+- unicode: Generates a specified number of Unicode characters
+- sqlinjection: Generates a specified number of characters from a SQL injection pattern
+- pathtraversal: Generates a specified number of characters for a path traversal attempt
+- cmdinjection: Generates a specified number of characters for a command injection attempt
+- htmljsinjection: Generates a specified number of characters for an HTML/JavaScript injection attempt
+- nullbytes: Generates a specified number of null bytes (as '\\x00')
+- randomhex: Generates a specified number of random hex bytes
+- file:filename: Inserts the contents of the specified file
+"""
+
+    parser = argparse.ArgumentParser(
+        description='Run executable with junk data as arguments.',
+        epilog=generators_help,
+        formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     parser.add_argument('binary', help='Path to executable')
-    parser.add_argument('--args', nargs='+', metavar='method:count', help='Methods to use for generating arguments along with the count, e.g., ascii:24 nonprintable:10')
-    parser.add_argument('-v', '--verbose', action='store_true', help='Print the full commandline generated')
-    parser.add_argument('-m', '--method-help', action='store_true', help='Show help for available methods')
+    parser.add_argument('args', nargs=argparse.REMAINDER, help='Arguments to pass to the executable, including junk argument generation in the form of generator:count')
 
-    args = parser.parse_args()
+    parsed_args = parser.parse_args()
 
-    if args.method_help:
-        print("Available methods:")
-        print("- ascii: Generates a specified number of ASCII characters ('A')")
-        print("- nonprintable: Generates a specified number of non-printable characters")
-        print("- formatstrings: Generates a specified number of '%x' format strings")
-        print("- randombinary: Generates a specified number of random binary data (hex)")
-        print("- randomascii: Generates a specified number of random ASCII characters")
-        print("- structured: Generates structured junk data by repeating 'ABCDEF'")
-        print("- unicode: Generates a specified number of Unicode characters")
-        print("- sqlinjection: Generates a specified number of characters from a SQL injection pattern")
-        print("- pathtraversal: Generates a specified number of characters for a path traversal attempt")
-        print("- cmdinjection: Generates a specified number of characters for a command injection attempt")
-        print("- htmljsinjection: Generates a specified number of characters for an HTML/JavaScript injection attempt")
-        print("- nullbytes: Generates a specified number of null bytes (as '\\x00')")
-        print("- randomhex: Generates a specified number of random hex bytes")
-        print("- file:filename: Inserts the contents of the specified file")
-        return
+    binary = parsed_args.binary
+    args = parsed_args.args
 
-    if args.binary and args.args:
-        generated_args = []
-        descriptions = []
+    generated_args = []
+    descriptions = []
 
-        try:
-            for arg in args.args:
-                if 'file:' in arg:
-                    method = arg
-                    count = None
+    try:
+        for arg in args:
+            if ':' in arg:
+                generator, count = arg.split(':', 1)
+                if generator == 'file':
+                    generated_arg, description = generate_argument(f'{generator}:{count}')
                 else:
-                    method, count = arg.split(':')
                     count = int(count)
-                
-                generated_arg, description = generate_argument(method, count)
+                    generated_arg, description = generate_argument(generator, count)
                 generated_args.append(generated_arg)
                 descriptions.append(description)
+            else:
+                generated_args.append(arg)
 
-            full_description = ', '.join(descriptions)
-            run_binary(args.binary, generated_args, full_description, args.verbose)
+        full_description = ', '.join(descriptions)
+        run_binary(binary, generated_args, full_description)
 
-        except ValueError as e:
-            print(e)
-            parser.print_help()
-    else:
+    except ValueError as e:
+        print(e)
         parser.print_help()
 
 if __name__ == "__main__":
